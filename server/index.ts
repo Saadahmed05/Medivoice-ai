@@ -15,13 +15,31 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Initialize Gemini SDK
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-  console.warn('WARNING: GEMINI_API_KEY environment variable is not defined. Calls to /api/analyze will fail.');
+// Initialize Gemini SDK with Key Rotation Pool
+const apiKeysStr = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
+const apiKeys = apiKeysStr.split(',').map(k => k.trim()).filter(k => k !== '');
+
+if (apiKeys.length === 0) {
+  console.warn('WARNING: No Gemini API keys defined. Calls to /api/analyze will fail.');
+} else {
+  console.log(`[Server] Initialized pool with ${apiKeys.length} Gemini API keys.`);
 }
 
-const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
+let currentKeyIndex = 0;
+const genAI = apiKeys.length > 0 ? true : null; // Keep compatibility with existing check
+
+function getActiveGenAIClient() {
+  if (apiKeys.length === 0) return null;
+  const key = apiKeys[currentKeyIndex];
+  return new GoogleGenerativeAI(key);
+}
+
+function rotateApiKey() {
+  if (apiKeys.length <= 1) return;
+  currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
+  console.log(`[API Key Rotation] Switched to key index ${currentKeyIndex}: ${apiKeys[currentKeyIndex].substring(0, 8)}...`);
+}
+
 const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 // Strict schema mapping to force Gemini to return valid JSON with types
@@ -57,15 +75,15 @@ async function generateContentWithRetry(
   retries = 3,
   delay = 500
 ): Promise<string> {
-  if (!genAI) {
-    throw new Error('Gemini API client is not initialized. Check GEMINI_API_KEY.');
-  }
-
-  const model = genAI.getGenerativeModel({ model: modelName });
-
   for (let attempt = 1; attempt <= retries; attempt++) {
+    const client = getActiveGenAIClient();
+    if (!client) {
+      throw new Error('Gemini API client is not initialized. Check GEMINI_API_KEYS.');
+    }
+
     try {
-      console.log(`[Gemini API] Requesting analysis (Attempt ${attempt}/${retries})...`);
+      const model = client.getGenerativeModel({ model: modelName });
+      console.log(`[Gemini API] Requesting analysis (Attempt ${attempt}/${retries}) using key index ${currentKeyIndex}...`);
       const response = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: {
@@ -81,12 +99,17 @@ async function generateContentWithRetry(
       }
       return responseText;
     } catch (err: any) {
-      console.error(`[Gemini API] Attempt ${attempt} failed: ${err.message}`);
+      console.error(`[Gemini API] Attempt ${attempt} failed with key index ${currentKeyIndex}: ${err.message}`);
+      
+      if (apiKeys.length > 1) {
+        rotateApiKey();
+      }
+
       if (attempt === retries) {
         throw err;
       }
       const backoff = delay * Math.pow(2, attempt - 1);
-      console.log(`[Gemini API] Retrying in ${backoff}ms...`);
+      console.log(`[Gemini API] Retrying in ${backoff}ms with rotated key...`);
       await new Promise((resolve) => setTimeout(resolve, backoff));
     }
   }
