@@ -4,20 +4,20 @@ import { ChevronDown, HelpCircle } from 'lucide-react';
 
 const FAQS = [
   {
-    q: "How accurate is MediVoice AI's clinical triage?",
-    a: "MediVoice AI utilizes a custom speech-to-text pipeline trained on thousands of hours of diverse medical accents and terms, achieving a 99.2% clinical transcription rate. Our triage logic is calibrated against the Emergency Severity Index (ESI) standard to ensure warning flags are correctly categorized."
+    q: "Is HealthCompass a diagnostic tool or a replacement for doctors?",
+    a: "No. HealthCompass is a clinical triage and routing assistant. It does not replace a doctor’s diagnosis; it helps community health workers and patients identify risk levels (Green/Amber/Red) and directs them to appropriate local care options (PHCs, urgent care, or ERs) to save lives and prevent system bottlenecks."
   },
   {
-    q: "Is my medical voice data encrypted and secure?",
-    a: "Absolutely. Security is central to our infrastructure. All audio inputs and transcripts are protected by TLS 1.3 in transit and AES-256 at rest. We do not sell or store patient data, and our cloud database complies fully with HIPAA, SOC2 Type II, and GDPR."
+    q: "How does the system handle regional dialects and accents?",
+    a: "Our dialect translation layer is trained on natural, verbal speech patterns and local idioms rather than formal text. By checking descriptions of symptoms in Telugu, Tamil, Hindi, and English, the engine maps colloquial terms directly to clinical definitions without losing context."
   },
   {
-    q: "Which languages and dialects are supported?",
-    a: "We currently support 50+ languages and dialects. This includes Spanish, Mandarin, Cantonese, Arabic, Hindi, Tagalog, French, Vietnamese, and Portuguese. Accent tolerance is built-in to prevent misdiagnosis due to regional variations."
+    q: "Are patient details and voice records secure?",
+    a: "Absolutely. HealthCompass does not store patient voice recordings or transcripts on public servers. The system processes inputs securely in memory and compiles the clinical referral summary locally in the browser, protecting patient confidentiality and aligning with public health security standards."
   },
   {
-    q: "Can MediVoice AI diagnose diseases or replace a physician?",
-    a: "No. MediVoice AI is a triage assistant, not a diagnostic system. It translates, summarizes symptoms, and alerts users of clinical risks, directing them to appropriate local care options (ER, urgent care, primary care, pharmacy). It does not replace professional medical advice."
+    q: "What happens if there is no internet connection in a village?",
+    a: "Safety is our priority. If the server is offline or running on slow networks, HealthCompass falls back to a local deterministic template mode based on the selected language, ensuring community workers still receive essential safety guidelines and facility details."
   }
 ];
 

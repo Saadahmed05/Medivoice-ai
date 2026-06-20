@@ -6,9 +6,10 @@ export default function Navbar({ onStartAssessment }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = [
-    { name: 'Features', href: '#features' },
-    { name: 'Interactive Demo', href: '#demo' },
-    { name: 'Trust & Privacy', href: '#trust' },
+    { name: 'The Challenge', href: '#problem' },
+    { name: 'Laxmi Story', href: '#story' },
+    { name: 'ASHA Workflow', href: '#features' },
+    { name: 'Triage Demo', href: '#demo' },
     { name: 'FAQ', href: '#faq' },
   ];
 
@@ -45,7 +46,7 @@ export default function Navbar({ onStartAssessment }) {
           <Mic size={20} color="#fff" />
         </div>
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          MediVoice <span className="text-gradient" style={{ fontSize: '0.8rem', fontWeight: '600', border: '1px solid rgba(6, 182, 212, 0.3)', padding: '2px 6px', borderRadius: '6px', background: 'rgba(6, 182, 212, 0.05)' }}>AI</span>
+          HealthCompass <span className="text-gradient" style={{ fontSize: '0.8rem', fontWeight: '600', border: '1px solid rgba(6, 182, 212, 0.3)', padding: '2px 6px', borderRadius: '6px', background: 'rgba(6, 182, 212, 0.05)' }}>ASHA</span>
         </span>
       </a>
 
@@ -75,7 +76,7 @@ export default function Navbar({ onStartAssessment }) {
           <Globe size={14} /> Try Multilingual
         </a>
         <button onClick={onStartAssessment} className="btn btn-primary" style={{ padding: '8px 20px', fontSize: '0.85rem', border: 'none' }}>
-          Start Assessment
+          Launch Triage
         </button>
       </div>
 
@@ -140,7 +141,7 @@ export default function Navbar({ onStartAssessment }) {
                 <Globe size={16} /> Try Multilingual
               </a>
               <button onClick={(e) => { setIsOpen(false); onStartAssessment(e); }} className="btn btn-primary" style={{ width: '100%', border: 'none' }}>
-                Start Assessment
+                Launch Triage
               </button>
             </div>
           </motion.div>

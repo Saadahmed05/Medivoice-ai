@@ -62,11 +62,11 @@ export default function Footer() {
               }}>
                 <Mic size={16} color="#fff" />
               </div>
-              <span>MediVoice <span className="text-gradient" style={{ fontSize: '0.75rem', fontWeight: '600' }}>AI</span></span>
+              <span>HealthCompass <span className="text-gradient" style={{ fontSize: '0.75rem', fontWeight: '600' }}>ASHA</span></span>
             </a>
             
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', maxWidth: '300px' }}>
-              Breaking translation and transcription barriers in global healthcare delivery.
+              Voice-first clinical triage for the last mile of healthcare.
             </p>
 
             {/* Micro newsletter */}
@@ -147,7 +147,7 @@ export default function Footer() {
           <span style={{ fontWeight: '700', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
             Clinical Safety Disclaimer
           </span>
-          MediVoice AI provides healthcare accessibility guidance and informational triage support. It does not provide medical diagnoses, active treatment prescriptions, or definitive clinical instructions. If you are experiencing a severe or life-threatening medical emergency, please contact your local emergency services (like 911 or 112) or go to the nearest emergency room immediately.
+          HealthCompass provides healthcare accessibility guidance and informational triage support. It does not provide medical diagnoses, active treatment prescriptions, or definitive clinical instructions. If you are experiencing a severe or life-threatening medical emergency, please contact your local emergency services (like 108 or 911) or go to the nearest emergency room immediately.
         </div>
 
         {/* Bottom copyright */}
@@ -162,7 +162,7 @@ export default function Footer() {
           fontSize: '0.85rem',
           color: 'var(--text-muted)'
         }}>
-          <span>&copy; {new Date().getFullYear()} MediVoice AI Technologies, Inc. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} HealthCompass. All rights reserved.</span>
           <div style={{ display: 'flex', gap: '24px' }}>
             <a href="#" style={{ transition: 'color 0.2s' }} onMouseEnter={(e) => e.target.style.color = '#fff'} onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}>Privacy Policy</a>
             <a href="#" style={{ transition: 'color 0.2s' }} onMouseEnter={(e) => e.target.style.color = '#fff'} onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}>Terms of Service</a>

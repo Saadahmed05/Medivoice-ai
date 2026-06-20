@@ -121,7 +121,7 @@ export default function DemoSimulator() {
             </h2>
             
             <p style={{ fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
-              Experience how MediVoice AI listens, transcribes, translates, and analyzes medical urgency instantly. Pick a language below and simulate a patient speaking.
+              Experience how HealthCompass listens, transcribes, translates, and analyzes medical urgency instantly. Pick a language below and simulate a patient speaking.
             </p>
 
             {/* Language Selector */}
@@ -184,7 +184,7 @@ export default function DemoSimulator() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
-                  <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)' }}>MEDIVOICE ENGINE ACTIVE</span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)' }}>HEALTHCOMPASS ACTIVE</span>
                 </div>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Lat: 1.2s</span>
               </div>

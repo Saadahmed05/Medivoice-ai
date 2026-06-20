@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, Volume2, ShieldAlert, RotateCcw, ArrowLeft, Type, CheckCircle, AlertTriangle, FileText, MapPin, X, Navigation, Search, AlertCircle, RefreshCw } from 'lucide-react';
+import { validateAndExtractFlags } from '../utils/translationGlossary';
 
 const ASSESSMENT_DATABASE = {
   English: {
@@ -56,6 +57,79 @@ const ASSESSMENT_DATABASE = {
   }
 };
 
+const runClientSideTriage = (text, language) => {
+  const textLower = text.toLowerCase();
+  const langData = ASSESSMENT_DATABASE[language] || ASSESSMENT_DATABASE.English;
+  
+  // 1. Chest Pain
+  if (/(chest.*pain|pain.*chest|heart.*pain|crushing.*chest|heart.*attack|గుండె.*నొప్పి|గుండెల్లో.*నొప్పి|छाती.*दर्द|सीने.*दर्द|நெஞ்.*வலி)/i.test(textLower)) {
+    return {
+      severity: 'emergency',
+      reason: 'Potential Acute Coronary Event (Myocardial Infarction indicators). Deterministic safety bypass triggered.',
+      action: "1. CALL EMERGENCY SERVICES (108) IMMEDIATELY.\n2. Sit upright in a comfortable position and remain calm.\n3. Loosen any tight clothing around your neck or waist.\n4. Do not offer food, water, or unprescribed medicines.",
+      hospitalRequired: true
+    };
+  }
+  
+  // 2. Snake Bite
+  if (/(snake.*bite|bitten.*snake|cobra|viper|పాము.*కాటు|పాము.*కరి|सांप.*काट|साँप.*काट|பாம்பு.*கடி)/i.test(textLower)) {
+    return {
+      severity: 'emergency',
+      reason: 'Potential Snake Bite (Envenomation risk). Deterministic safety bypass triggered.',
+      action: "1. CALL EMERGENCY SERVICES (108) IMMEDIATELY.\n2. Keep the bitten limb completely still and positioned BELOW heart level.\n3. Remove any rings, bracelets, or tight clothing near the bite.\n4. DO NOT cut the wound, apply ice, or try to suck out venom.",
+      hospitalRequired: true
+    };
+  }
+  
+  // 3. Stroke
+  if (/(stroke|slurred.*speech|facial.*droop|numbness.*side|unable.*speak|పక్షవాతం|మాట.*పడి|लकवा|बोल.*तकलीफ|பக்கவாதம்|பேச்சு.*குளறு)/i.test(textLower)) {
+    return {
+      severity: 'emergency',
+      reason: 'Potential Acute Stroke (Neurological deficit). Deterministic safety bypass triggered.',
+      action: "1. CALL EMERGENCY SERVICES (108) IMMEDIATELY.\n2. Note the exact time when symptoms first started.\n3. Lie patient on their side in the recovery position if breathing.\n4. DO NOT give any food, water, or medicine (high choking hazard).",
+      hospitalRequired: true
+    };
+  }
+  
+  // 4. Severe Bleeding
+  if (/(heavy.*bleeding|gushing.*blood|hemorrhage|bleeding.*lot|bleeding.*heavily|రక్తస్రావం|రక్తం.*కారు|रक्तस्राव|खून.*बह|இரத்த.*போக்கு|இரத்தம்.*கொட்டு)/i.test(textLower)) {
+    return {
+      severity: 'emergency',
+      reason: 'Potential Severe Hemorrhage (Critical volume loss). Deterministic safety bypass triggered.',
+      action: "1. CALL EMERGENCY SERVICES (108) IMMEDIATELY.\n2. Apply firm, direct pressure to the bleeding wound using a clean cloth.\n3. Elevate the bleeding limb above the heart level if possible.\n4. Keep patient flat and warm with blankets to prevent shock.",
+      hospitalRequired: true
+    };
+  }
+  
+  // 5. Difficulty Breathing
+  if (/(difficulty.*breathing|cannot.*breathe|short.*breath|shortness.*breath|struggling.*breathe|suffocating|ఊపిరి.*ఆడ|శ్వాస.*కష్టం|सांस.*तकलीफ|साँस.*तकलीफ|दम.*घुट|மூச்சு.*திணறல்|மூச்சு.*முடியவில்லை)/i.test(textLower)) {
+    return {
+      severity: 'emergency',
+      reason: 'Potential Acute Respiratory distress (Hypoxia danger). Deterministic safety bypass triggered.',
+      action: "1. CALL EMERGENCY SERVICES (108) IMMEDIATELY.\n2. Help the patient sit fully upright, leaning slightly forward.\n3. Loosen tight collars, neckties, or chest coverings.\n4. Administer prescribed rescue inhaler or nebulizer if available.",
+      hospitalRequired: true
+    };
+  }
+  
+  // 6. Unconsciousness
+  if (/(unconscious|passed.*out|fainted|not.*waking.*up|unresponsive|స్పృహ.*తప్ప|స్పృహ.*లేదు|बेहोश|अचेत|மயக்க|நினைவிழந்த)/i.test(textLower)) {
+    return {
+      severity: 'emergency',
+      reason: 'Patient Unresponsive / Unconscious (Syncope or Coma). Deterministic safety bypass triggered.',
+      action: "1. CALL EMERGENCY SERVICES (108) IMMEDIATELY.\n2. Check for normal breathing. If breathing, place in recovery position.\n3. If NOT breathing, prepare to perform CPR immediately.\n4. DO NOT leave the patient alone or put anything in their mouth.",
+      hospitalRequired: true
+    };
+  }
+  
+  // Default fallback to data templates
+  return {
+    severity: langData.severity || 'safe',
+    reason: `(Local Assessment) ${langData.analysis}`,
+    action: langData.advice.map((line, idx) => `${idx + 1}. ${line}`).join('\n'),
+    hospitalRequired: langData.severity === 'emergency'
+  };
+};
+
 export default function AssessmentFlow({ onClose }) {
   const [largeText, setLargeText] = useState(false);
   const [language, setLanguage] = useState('English');
@@ -63,6 +137,12 @@ export default function AssessmentFlow({ onClose }) {
   const [typedSpeech, setTypedSpeech] = useState('');
   const [isReadingAudio, setIsReadingAudio] = useState(false);
   const [showMapDrawer, setShowMapDrawer] = useState(false);
+  
+  // Reliability States
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isMicBlocked, setIsMicBlocked] = useState(false);
+  const [speechUnsupported, setSpeechUnsupported] = useState(false);
+  const [fallbackReason, setFallbackReason] = useState('');
   
   // Real Speech Recognition States
   const [isMicAvailable, setIsMicAvailable] = useState(true);
@@ -87,10 +167,11 @@ export default function AssessmentFlow({ onClose }) {
   const [patientName, setPatientName] = useState('');
   const [patientAge, setPatientAge] = useState('');
   const [formError, setFormError] = useState('');
+  const [translationFlags, setTranslationFlags] = useState([]);
 
   const data = ASSESSMENT_DATABASE[language];
 
-  // Initialize Speech Recognition on Mount
+  // Initialize Speech Recognition & Reliability Observers on Mount
   useEffect(() => {
     const SpeechLib = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechLib) {
@@ -99,10 +180,17 @@ export default function AssessmentFlow({ onClose }) {
       rec.interimResults = true;
       recognitionRef.current = rec;
       setIsMicAvailable(true);
+      setSpeechUnsupported(false);
     } else {
       console.warn('Browser SpeechRecognition not supported.');
       setIsMicAvailable(false);
+      setSpeechUnsupported(true);
     }
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
     return () => {
       if (recognitionRef.current) {
@@ -113,28 +201,12 @@ export default function AssessmentFlow({ onClose }) {
       if (simIntervalRef.current) {
         clearInterval(simIntervalRef.current);
       }
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  useEffect(() => {
-    setStage('language-select');
-    setTypedSpeech('');
-    setApiResult(null);
-    setApiError(null);
-    setIsFallback(false);
-    setIsSimulated(false);
-    setIsReadingAudio(false);
-    setShowMapDrawer(false);
-    setLocState('idle');
-    setUserCoords(null);
-    setManualSearchVal('');
-    setAppliedSearchQuery('');
-    setLocError('');
-    setShowReportModal(false);
-    setPatientName('');
-    setPatientAge('');
-    setFormError('');
-  }, [language]);
+  // Selected language state change trigger (cleared redundant useEffect to prevent reset loops on dialect selection)
 
   // Text scaling variables for elderly readability
   const scaleText = (baseSize, scaleFactor = 1.3) => {
@@ -180,8 +252,8 @@ export default function AssessmentFlow({ onClose }) {
       recognition.onerror = (event) => {
         console.error('[Speech Recognition Error]', event.error);
         if (event.error === 'not-allowed') {
-          setApiError('Microphone permission blocked. Please check your browser settings.');
-          startSimulationFallback();
+          setIsMicBlocked(true);
+          setStage('empty-speech');
         }
       };
 
@@ -189,10 +261,12 @@ export default function AssessmentFlow({ onClose }) {
         recognition.start();
       } catch (err) {
         console.error('Failed to start speech recognition, running fallback:', err);
-        startSimulationFallback();
+        setIsMicBlocked(true);
+        setStage('empty-speech');
       }
     } else {
-      startSimulationFallback();
+      setIsMicBlocked(true);
+      setStage('empty-speech');
     }
   };
 
@@ -242,7 +316,34 @@ export default function AssessmentFlow({ onClose }) {
     setStage('submitting');
     setApiError(null);
     setIsFallback(false);
+    setFallbackReason('');
     setTypedSpeech(text);
+
+    // Extract verified clinical translation flags
+    const flags = validateAndExtractFlags(text, language);
+    setTranslationFlags(flags);
+
+    // 1. Offline Connection Triage Bypass
+    if (!navigator.onLine) {
+      console.warn('[Offline Mode Active] Skipping server query, running local triage engine.');
+      setTimeout(() => {
+        setIsFallback(true);
+        setFallbackReason('Offline Mode Active');
+        const localTriageResult = runClientSideTriage(text, language);
+        if (usingDefaultSample) {
+          localTriageResult.reason = `(Sample Triage) ${localTriageResult.reason}`;
+        }
+        setApiResult(localTriageResult);
+        setStage('results');
+      }, 1000);
+      return;
+    }
+
+    // 2. Server Request with 8-second Timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 8000);
 
     try {
       const response = await fetch('/api/analyze', {
@@ -253,8 +354,11 @@ export default function AssessmentFlow({ onClose }) {
         body: JSON.stringify({
           symptomText: text,
           language: language
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errData = await response.json();
@@ -268,19 +372,33 @@ export default function AssessmentFlow({ onClose }) {
       setApiResult(result);
       setStage('results');
     } catch (err) {
-      console.warn('[Assessment Backend Error] Falling back to template:', err.message);
+      clearTimeout(timeoutId);
+      console.warn('[Assessment Backend Error / Timeout] Triggering offline safety protocol:', err.message);
+      
+      const isTimeout = err.name === 'AbortError';
+      const isConnectionRefused = err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('network');
+      
+      let reasonStr = 'Local Triage Active';
+      if (isTimeout) {
+        reasonStr = 'Connection Timeout (8s limit)';
+      } else if (isConnectionRefused) {
+        reasonStr = 'Triage Server Offline';
+      } else {
+        reasonStr = `Server Error: ${err.message}`;
+      }
+
       setApiError(err.message);
       
       setTimeout(() => {
         setIsFallback(true);
-        setApiResult({
-          severity: data.severity,
-          reason: `(Template Assessment) ${data.analysis}`,
-          action: data.advice.map((line, idx) => `${idx + 1}. ${line}`).join('\n'),
-          hospitalRequired: data.severity === 'emergency'
-        });
+        setFallbackReason(reasonStr);
+        const localTriageResult = runClientSideTriage(text, language);
+        if (usingDefaultSample) {
+          localTriageResult.reason = `(Sample Triage) ${localTriageResult.reason}`;
+        }
+        setApiResult(localTriageResult);
         setStage('results');
-      }, 1500);
+      }, 1200);
     }
   };
 
@@ -302,6 +420,14 @@ export default function AssessmentFlow({ onClose }) {
     setPatientName('');
     setPatientAge('');
     setFormError('');
+    setTranslationFlags([]);
+  };
+
+  const handleQuickSearch = (query) => {
+    setManualSearchVal(query);
+    setAppliedSearchQuery(query);
+    setUserCoords(null);
+    setLocState('success');
   };
 
   const toggleAudioSpeech = () => {
@@ -439,11 +565,30 @@ export default function AssessmentFlow({ onClose }) {
       .map((line) => `<li>${line.replace(/^\d+[\.\)]\s*/, '').trim()}</li>`)
       .join('');
 
+    const verifiedFlagsHtml = translationFlags.length > 0
+      ? `
+        <div style="margin-top: 12px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px;">
+          <strong style="color: #065f46; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 6px; letter-spacing: 0.5px;">
+            ✓ Verified Clinical Translation Glossary Matches (Zero-Error)
+          </strong>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${translationFlags.map((flag) => `
+              <span style="background: #ffffff; border: 1px solid #d1fae5; border-radius: 6px; padding: 4px 8px; font-size: 11px; display: inline-flex; gap: 4px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                <span style="color: #64748b;">"${flag.original}"</span>
+                <span style="color: #10b981;">➔</span>
+                <strong style="color: #0f172a;">${flag.matchedEnglish}</strong>
+              </span>
+            `).join('')}
+          </div>
+        </div>
+      `
+      : '';
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>MediVoice Clinical Referral Report - ${patientName}</title>
+          <title>HealthCompass Clinical Referral Report - ${patientName}</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
             body {
@@ -657,7 +802,7 @@ export default function AssessmentFlow({ onClose }) {
                 <div class="logo-icon">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
                 </div>
-                <span class="logo-text">MediVoice <span class="logo-tag">AI</span></span>
+                <span class="logo-text">HealthCompass <span class="logo-tag">ASHA</span></span>
               </div>
               <div class="report-info">
                 <strong>Triage Referral ID:</strong> ${triageId}<br>
@@ -691,6 +836,7 @@ export default function AssessmentFlow({ onClose }) {
               <div class="transcript-box">
                 "${typedSpeech}"
               </div>
+              ${verifiedFlagsHtml}
             </div>
 
             <div class="section">
@@ -712,7 +858,7 @@ export default function AssessmentFlow({ onClose }) {
 
             <div class="footer-signature-row" style="page-break-inside: avoid;">
               <div class="clinical-stamp">
-                MediVoice AI<br>
+                HealthCompass<br>
                 Triage Report<br>
                 SECURE RECORD
               </div>
@@ -794,20 +940,7 @@ export default function AssessmentFlow({ onClose }) {
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'var(--bg-primary)',
-      zIndex: 1000,
-      overflowY: 'auto',
-      display: 'flex',
-      flexDirection: 'column',
-      color: '#fff',
-      padding: '24px 16px'
-    }}>
+    <div className="assessment-flow-overlay">
       {/* Background Decorative Mesh */}
       <div style={{
         position: 'fixed',
@@ -823,16 +956,7 @@ export default function AssessmentFlow({ onClose }) {
       }} />
 
       {/* Top Header Actions */}
-      <div style={{
-        maxWidth: '720px',
-        width: '100%',
-        margin: '0 auto 24px auto',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingBottom: '16px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)'
-      }}>
+      <div className="assessment-flow-header">
         <button
           onClick={stage === 'results' ? reset : onClose}
           style={{
@@ -873,16 +997,32 @@ export default function AssessmentFlow({ onClose }) {
         </button>
       </div>
 
+      {/* Offline Alert Banner */}
+      {!isOnline && (
+        <div style={{
+          maxWidth: '720px',
+          width: '100%',
+          margin: '-12px auto 20px auto',
+          background: 'rgba(245, 158, 11, 0.08)',
+          border: '1px solid rgba(245, 158, 11, 0.25)',
+          borderRadius: '12px',
+          padding: '12px 16px',
+          fontSize: '0.85rem',
+          color: '#f59e0b',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <AlertCircle size={16} />
+          <span><strong>Offline Mode Active:</strong> Internet connection lost. Switched to client-side local triage protocols.</span>
+        </div>
+      )}
+
       {/* Main Container */}
-      <div style={{
-        maxWidth: '720px',
-        width: '100%',
-        margin: '0 auto',
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center'
+      <div className="assessment-flow-main" style={{
+        justifyContent: (stage === 'results' || stage === 'empty-speech' || stage === 'senior-warning' || stage === 'patient-info') ? 'flex-start' : 'center',
+        paddingTop: (stage === 'results' || stage === 'empty-speech' || stage === 'senior-warning' || stage === 'patient-info') ? '20px' : '0px',
+        paddingBottom: (stage === 'results' || stage === 'empty-speech' || stage === 'senior-warning' || stage === 'patient-info') ? '40px' : '0px'
       }}>
         
         {/* Stage 1: Choose Language */}
@@ -914,7 +1054,7 @@ export default function AssessmentFlow({ onClose }) {
                     key={key}
                     onClick={() => {
                       setLanguage(key);
-                      setStage('ready');
+                      setStage('patient-info');
                     }}
                     style={{
                       background: 'rgba(11, 17, 44, 0.6)',
@@ -946,7 +1086,212 @@ export default function AssessmentFlow({ onClose }) {
           </motion.div>
         )}
 
-        {/* Stage 2 & 3: Ready or Recording */}
+        {/* Stage: Patient Registration (Name & Age) */}
+        {stage === 'patient-info' && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{ width: '100%', maxWidth: '480px', display: 'flex', flexDirection: 'column', gap: '20px' }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+              <h2 style={{ fontSize: scaleText('1.8rem', 1.2), fontWeight: '800', marginBottom: '8px' }}>
+                Step 2: Patient Registration
+              </h2>
+              <p style={{ fontSize: scaleText('0.95rem'), color: 'var(--text-secondary)' }}>
+                Please enter the patient's basic details to initialize triage.
+              </p>
+            </div>
+
+            {formError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                borderRadius: '10px',
+                padding: '10px 14px',
+                fontSize: '0.85rem',
+                color: 'var(--color-danger)',
+                fontWeight: '600'
+              }}>
+                {formError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
+              {/* Patient Name */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Patient Full Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter name (e.g. John Doe)"
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--glass-border)',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    color: '#fff',
+                    fontSize: '16px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Patient Age */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Patient Age (Years)
+                </label>
+                <input
+                  type="number"
+                  placeholder="Enter age (e.g. 65)"
+                  value={patientAge}
+                  onChange={(e) => setPatientAge(e.target.value)}
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--glass-border)',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    color: '#fff',
+                    fontSize: '16px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '12px', width: '100%', marginTop: '8px' }}>
+              <button
+                onClick={() => setStage('language-select')}
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: '12px' }}
+              >
+                Back
+              </button>
+              <button
+                onClick={() => {
+                  setFormError('');
+                  if (!patientName.trim()) {
+                    setFormError('Please enter a valid Patient Name.');
+                    return;
+                  }
+                  const ageNum = parseInt(patientAge);
+                  if (isNaN(ageNum) || ageNum <= 0 || ageNum > 125) {
+                    setFormError('Please enter a valid Age (between 1 and 125).');
+                    return;
+                  }
+                  if (ageNum >= 60) {
+                    setStage('senior-warning');
+                  } else {
+                    setStage(speechUnsupported ? 'empty-speech' : 'ready');
+                  }
+                }}
+                className="btn btn-primary"
+                style={{ flex: 2, padding: '12px', border: 'none' }}
+              >
+                Continue
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Stage: Senior Citizen Safety Warning Screen */}
+        {stage === 'senior-warning' && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{ width: '100%', maxWidth: '520px', display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'center', alignItems: 'center' }}
+          >
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.2)',
+              color: '#f59e0b',
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 20px rgba(245, 158, 11, 0.15)',
+              marginBottom: '4px'
+            }}>
+              <AlertTriangle size={28} />
+            </div>
+
+            <div>
+              <h2 style={{ fontSize: scaleText('1.6rem', 1.2), fontWeight: '800', marginBottom: '8px', color: '#f59e0b' }}>
+                Senior Citizen Clinical Protocol Active
+              </h2>
+              <p style={{ fontSize: scaleText('0.95rem'), color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                The patient is <strong>{patientAge} years old</strong>. Please apply elevated clinical vigilance.
+              </p>
+            </div>
+
+            {/* Warning Guidelines */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              borderRadius: '16px',
+              padding: '18px',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              textAlign: 'left'
+            }}>
+              <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Elderly Triage Safety Checklist:
+              </h4>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <div style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold' }}>1</div>
+                <div>
+                  <h5 style={{ fontWeight: '700', color: '#fff', fontSize: '0.9rem', margin: '0 0 2px 0' }}>Atypical Symptom Presentations</h5>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Seniors may experience heart emergencies without classic chest pain, or severe infections without fevers.</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <div style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold' }}>2</div>
+                <div>
+                  <h5 style={{ fontWeight: '700', color: '#fff', fontSize: '0.9rem', margin: '0 0 2px 0' }}>Rapid Deterioration Vulnerability</h5>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Pre-existing health conditions can cause minor issues to escalate quickly. Treat shortness of breath or dizziness as high-urgency.</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <div style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold' }}>3</div>
+                <div>
+                  <h5 style={{ fontWeight: '700', color: '#fff', fontSize: '0.9rem', margin: '0 0 2px 0' }}>Communication Assistance</h5>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Speak slowly and clearly. Verify that they can hear the voice guidance audio. Use the manual symptom typing editor if needed.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: '12px', width: '100%', marginTop: '8px' }}>
+              <button
+                onClick={() => setStage('patient-info')}
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: '12px' }}
+              >
+                Back
+              </button>
+              <button
+                onClick={() => setStage(speechUnsupported ? 'empty-speech' : 'ready')}
+                className="btn btn-primary"
+                style={{ flex: 2, padding: '12px', background: 'var(--color-success)', border: 'none', boxShadow: '0 0 15px rgba(16, 185, 129, 0.3)' }}
+              >
+                Understand & Start Triage
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Stage 3 & 4: Ready or Recording */}
         {(stage === 'ready' || stage === 'recording') && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '32px', textAlign: 'center' }}>
             
@@ -1105,34 +1450,41 @@ export default function AssessmentFlow({ onClose }) {
           </div>
         )}
 
-        {/* Empty Speech / Recording Failure State */}
         {stage === 'empty-speech' && (
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            style={{ width: '100%', maxWidth: '540px', display: 'flex', flexDirection: 'column', gap: '24px', textAlign: 'center', alignItems: 'center' }}
+            style={{ width: '100%', maxWidth: '480px', display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'center', alignItems: 'center' }}
           >
             <div style={{
-              background: 'rgba(245, 158, 11, 0.08)',
-              border: '1px solid rgba(245, 158, 11, 0.2)',
-              color: '#f59e0b',
-              width: '64px',
-              height: '64px',
+              background: isMicBlocked ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+              border: isMicBlocked ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
+              color: isMicBlocked ? 'var(--color-danger)' : '#f59e0b',
+              width: '48px',
+              height: '48px',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 20px rgba(245, 158, 11, 0.15)'
+              boxShadow: isMicBlocked ? '0 0 20px rgba(239, 68, 68, 0.15)' : '0 0 20px rgba(245, 158, 11, 0.15)'
             }}>
-              <AlertCircle size={32} />
+              <AlertCircle size={24} />
             </div>
 
             <div>
-              <h2 style={{ fontSize: scaleText('1.8rem', 1.2), fontWeight: '800', marginBottom: '8px' }}>
-                We couldn't hear you clearly
+              <h2 style={{ fontSize: scaleText('1.5rem', 1.25), fontWeight: '800', marginBottom: '4px' }}>
+                {isMicBlocked 
+                  ? 'Microphone Blocked' 
+                  : speechUnsupported 
+                    ? 'Voice Triage Disabled' 
+                    : "We couldn't hear you clearly"}
               </h2>
-              <p style={{ fontSize: scaleText('1.05rem'), color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                It looks like the microphone didn't capture your voice. You can record again, type your symptoms, or use our native clinical sample.
+              <p style={{ fontSize: scaleText('0.95rem', 1.15), color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                {isMicBlocked 
+                  ? 'Microphone permission was denied. Please type symptoms manually below, or adjust browser permissions.' 
+                  : speechUnsupported 
+                    ? 'Voice recognition is not supported on this browser. Direct text triage mode is active.' 
+                    : "The microphone didn't capture your voice. You can record again, type symptoms, or use our clinical sample."}
               </p>
             </div>
 
@@ -1147,13 +1499,13 @@ export default function AssessmentFlow({ onClose }) {
                 placeholder="e.g. I have had a high fever and headache for two days..."
                 style={{
                   width: '100%',
-                  height: '110px',
+                  height: '80px',
                   background: 'rgba(255,255,255,0.03)',
                   border: '1px solid var(--glass-border)',
                   borderRadius: '12px',
-                  padding: '12px 16px',
+                  padding: '10px 14px',
                   color: '#fff',
-                  fontSize: '0.95rem',
+                  fontSize: '16px',
                   outline: 'none',
                   resize: 'none',
                   fontFamily: 'var(--font-sans)',
@@ -1162,23 +1514,43 @@ export default function AssessmentFlow({ onClose }) {
               />
             </div>
 
+            {/* Help Block: How to Unblock Microphone */}
+            {isMicBlocked && (
+              <div style={{
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)',
+                textAlign: 'left',
+                width: '100%'
+              }}>
+                <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '2px' }}>How to Unblock:</strong>
+                Tap the padlock or site settings icon in the top URL bar, change Microphone access to <strong>Allow</strong>, and refresh the portal.
+              </div>
+            )}
+
             {/* Action CTAs */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
-              <button
-                onClick={() => {
-                  setStage('ready');
-                  setTypedSpeech('');
-                }}
-                className="btn btn-primary"
-                style={{ width: '100%', padding: '14px', border: 'none' }}
-              >
-                <Mic size={18} /> Record Again
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+              {!speechUnsupported && (
+                <button
+                  onClick={() => {
+                    setIsMicBlocked(false);
+                    setStage('ready');
+                    setTypedSpeech('');
+                  }}
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '10px', fontSize: scaleText('0.9rem', 1.1), border: 'none' }}
+                >
+                  <Mic size={16} /> {isMicBlocked ? 'Grant Permissions & Retry' : 'Record Again'}
+                </button>
+              )}
 
               <button
                 onClick={() => submitSymptomText(data.speech, true)}
                 className="btn btn-secondary"
-                style={{ width: '100%', padding: '14px' }}
+                style={{ width: '100%', padding: '10px', fontSize: scaleText('0.9rem', 1.1) }}
               >
                 Use Pre-set Clinical Sample
               </button>
@@ -1187,7 +1559,7 @@ export default function AssessmentFlow({ onClose }) {
                 <button
                   onClick={() => submitSymptomText(typedSpeech.trim())}
                   className="btn btn-primary"
-                  style={{ width: '100%', padding: '14px', background: 'var(--grad-accent)', border: 'none' }}
+                  style={{ width: '100%', padding: '10px', fontSize: scaleText('0.9rem', 1.1), background: 'var(--grad-accent)', border: 'none' }}
                 >
                   Submit Typed Symptoms
                 </button>
@@ -1210,7 +1582,7 @@ export default function AssessmentFlow({ onClose }) {
                 Assessment Complete
               </h2>
               <p style={{ fontSize: scaleText('1rem'), color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Your clinical speech has been processed securely.
+                Triage summary for <strong style={{ color: '#fff' }}>{patientName}</strong> ({patientAge} Years) has been compiled successfully.
               </p>
             </motion.div>
 
@@ -1250,7 +1622,53 @@ export default function AssessmentFlow({ onClose }) {
                   </p>
                 </div>
               )}
+
+              {translationFlags.length > 0 && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <span style={{ fontSize: scaleText('0.75rem'), fontWeight: '700', color: 'var(--color-success)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    ✓ Verified Clinical Translation Glossary Matches (Zero-Error)
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '2px' }}>
+                    {translationFlags.map((flag, idx) => (
+                      <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', borderRadius: '10px', padding: '6px 12px', fontSize: scaleText('0.85rem'), color: '#fff', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>"{flag.original}"</span>
+                        <span style={{ color: 'var(--color-primary)', fontSize: '0.75rem' }}>➔</span>
+                        <strong>{flag.matchedEnglish}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
+
+            {/* Senior Citizen Alert Advisory (if patient is >= 60) */}
+            {parseInt(patientAge) >= 60 && (
+              <motion.div
+                variants={animateChild}
+                style={{
+                  background: 'rgba(245, 158, 11, 0.06)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                  borderRadius: '16px',
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  textAlign: 'left'
+                }}
+              >
+                <div style={{ color: '#f59e0b', marginTop: '2px' }}>
+                  <AlertTriangle size={18} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <strong style={{ fontSize: scaleText('0.9rem'), color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Senior Patient Advisory ({patientAge} Years)
+                  </strong>
+                  <p style={{ fontSize: scaleText('0.85rem'), color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    Elderly patients carry high clinical risk. Atypical symptoms (e.g., lack of chest pain during a cardiac event or lack of fever during severe infection) are common. Closely monitor patient vitals and proceed to clinical care.
+                  </p>
+                </div>
+              </motion.div>
+            )}
 
             {/* 2. Risk Level Banner */}
             <motion.div
@@ -1458,7 +1876,7 @@ export default function AssessmentFlow({ onClose }) {
 
               {/* Generate Referral PDF Report Button */}
               <button
-                onClick={() => setShowReportModal(true)}
+                onClick={handleExportPDF}
                 style={{
                   background: 'rgba(255,255,255,0.03)',
                   border: '1px solid var(--glass-border)',
@@ -1534,20 +1952,7 @@ export default function AssessmentFlow({ onClose }) {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 180 }}
-              className="glass-panel"
-              style={{
-                width: '100%',
-                maxWidth: '540px',
-                padding: '24px',
-                borderRadius: '24px',
-                border: '1px solid rgba(255,255,255,0.12)',
-                boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '16px',
-                maxHeight: '90vh',
-                overflowY: 'auto'
-              }}
+              className="glass-panel drawer-content-panel"
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ fontSize: scaleText('1.3rem'), fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1555,9 +1960,10 @@ export default function AssessmentFlow({ onClose }) {
                 </h3>
                 <button
                   onClick={() => setShowMapDrawer(false)}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', width: '48px', height: '48px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  aria-label="Close Facility Finder"
                 >
-                  <X size={16} />
+                  <X size={20} />
                 </button>
               </div>
 
@@ -1569,21 +1975,52 @@ export default function AssessmentFlow({ onClose }) {
               )}
 
               {locState === 'error' && (
-                <div style={{
-                  background: 'rgba(239, 68, 68, 0.08)',
-                  border: '1px solid rgba(239, 68, 68, 0.2)',
-                  borderRadius: '16px',
-                  padding: '16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  fontSize: '0.85rem'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-danger)', fontWeight: '700' }}>
-                    <AlertCircle size={16} />
-                    <span>GPS Access Failed</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    fontSize: '0.85rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-danger)', fontWeight: '700' }}>
+                      <AlertCircle size={16} />
+                      <span>GPS Access Failed</span>
+                    </div>
+                    <p style={{ color: 'var(--text-secondary)', margin: 0 }}>{locError}</p>
                   </div>
-                  <p style={{ color: 'var(--text-secondary)' }}>{locError}</p>
+                  
+                  {/* Quick suggestions hooks */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Quick Suggestions:
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {['PHC', 'Government Hospital', 'Emergency Care'].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => handleQuickSearch(suggestion)}
+                          style={{
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid var(--glass-border)',
+                            borderRadius: '8px',
+                            padding: '6px 12px',
+                            fontSize: '0.8rem',
+                            color: 'var(--color-primary)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(6, 182, 212, 0.1)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                        >
+                          Find {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1596,7 +2033,7 @@ export default function AssessmentFlow({ onClose }) {
                       placeholder="Enter city or PIN (e.g. Hyderabad, 500001)"
                       value={manualSearchVal}
                       onChange={(e) => setManualSearchVal(e.target.value)}
-                      style={{ background: 'none', border: 'none', color: '#fff', outline: 'none', fontSize: '0.9rem', width: '100%' }}
+                      style={{ background: 'none', border: 'none', color: '#fff', outline: 'none', fontSize: '16px', width: '100%' }}
                     />
                   </div>
                   <button
@@ -1744,18 +2181,7 @@ export default function AssessmentFlow({ onClose }) {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 180 }}
-              className="glass-panel"
-              style={{
-                width: '100%',
-                maxWidth: '440px',
-                padding: '28px',
-                borderRadius: '24px',
-                border: '1px solid rgba(255,255,255,0.12)',
-                boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '20px'
-              }}
+              className="glass-panel report-modal-panel"
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1763,9 +2189,10 @@ export default function AssessmentFlow({ onClose }) {
                 </h3>
                 <button
                   onClick={() => setShowReportModal(false)}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', width: '48px', height: '48px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  aria-label="Close Referral PDF Creator"
                 >
-                  <X size={16} />
+                  <X size={20} />
                 </button>
               </div>
 

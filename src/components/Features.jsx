@@ -6,29 +6,29 @@ export default function Features() {
   const features = [
     {
       icon: <Mic size={24} />,
-      title: 'Voice First Interface',
-      description: 'Speak your symptoms naturally. Our custom clinical-grade speech engine instantly transcribes and maps complex medical symptoms in real-time.',
+      title: '1. Verbal Intake',
+      description: 'ASHA workers record symptoms in regional dialects directly on low-spec phones, removing literacy and typing barriers for patients.',
       color: 'var(--color-primary)',
       gradient: 'rgba(6, 182, 212, 0.15)'
     },
     {
       icon: <Globe size={24} />,
-      title: 'Multilingual Support',
-      description: 'Consult in your native language. Breaking down linguistic barriers in medicine with instant translations and context preservation in 50+ languages.',
+      title: '2. Dialect Translation',
+      description: 'Context-aware speech translation maps colloquial, localized descriptions of pain into standard clinical English terminology instantly.',
       color: 'var(--color-accent)',
       gradient: 'rgba(99, 102, 241, 0.15)'
     },
     {
       icon: <AlertTriangle size={24} />,
-      title: 'Emergency Detection',
-      description: 'Continuous risk assessment. The AI identifies high-severity symptoms and clinical warning flags, warning you instantly to seek urgent emergency care.',
+      title: '3. Safety Overrides',
+      description: 'Deterministic overrides bypass LLM logic for stroke, cardiovascular, respiratory, and environmental hazards to enforce clinical safety.',
       color: 'var(--color-danger)',
       gradient: 'rgba(244, 63, 94, 0.15)'
     },
     {
       icon: <MapPin size={24} />,
-      title: 'Nearby Healthcare Access',
-      description: 'Instant care routing. Automatically locates, ranks, and maps closest open pharmacies, urgent care facilities, and specialized hospitals.',
+      title: '4. Referral Routing',
+      description: 'Locates nearest open Public Health Centers (PHCs) and compiles structured clinical summaries to accelerate ER check-ins.',
       color: 'var(--color-success)',
       gradient: 'rgba(16, 185, 129, 0.15)'
     }
@@ -61,7 +61,7 @@ export default function Features() {
             display: 'block',
             marginBottom: '12px'
           }}>
-            Startup Capabilities
+            ASHA Worker Workflow
           </span>
           <h2 style={{
             fontSize: 'clamp(2rem, 4vw, 3rem)',
@@ -69,10 +69,10 @@ export default function Features() {
             marginBottom: '20px',
             lineHeight: 1.15
           }}>
-            Intelligent Care, <span className="text-gradient">Accessible Everywhere</span>
+            Accredited Social Triage, <span className="text-gradient">Saving Lives in Seconds</span>
           </h2>
           <p style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>
-            MediVoice AI combines voice diagnostics, real-time natural language translation, and instant clinical routing into a single, seamless digital healthcare assistant.
+            HealthCompass combines voice dialect intake, context preservation, safety rules, and local care routing into a rugged public health utility.
           </p>
         </div>
 

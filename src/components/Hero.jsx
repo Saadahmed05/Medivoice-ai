@@ -72,7 +72,7 @@ export default function Hero({ onStartAssessment }) {
             >
               <Star size={14} fill="#06b6d4" color="#06b6d4" />
               <span style={{ fontSize: '0.85rem', fontWeight: '600', letterSpacing: '0.05em', color: '#22d3ee', textTransform: 'uppercase' }}>
-                Next-Gen Healthcare AI
+                Next-Gen Healthcare Triage
               </span>
             </motion.div>
 
@@ -87,9 +87,9 @@ export default function Hero({ onStartAssessment }) {
                 letterSpacing: '-0.03em'
               }}
             >
-              Your Voice.<br />
-              Your Health.<br />
-              <span className="text-gradient">Your Language.</span>
+              Voice-First Triage<br />
+              For The Last Mile<br />
+              <span className="text-gradient">Of Healthcare.</span>
             </motion.h1>
 
             {/* Subheadline */}
@@ -103,7 +103,7 @@ export default function Hero({ onStartAssessment }) {
                 lineHeight: 1.6
               }}
             >
-              Speak your symptoms and receive instant, secure healthcare guidance in your native language. Powered by clinical-grade AI.
+              For rural patients, a language barrier is a diagnostic barrier. HealthCompass enables health workers to capture symptoms in local dialects, run clinical triage, and route patients in seconds.
             </motion.p>
 
             {/* CTAs */}
@@ -117,10 +117,10 @@ export default function Hero({ onStartAssessment }) {
               }}
             >
               <button onClick={onStartAssessment} className="btn btn-primary" style={{ fontSize: '1.05rem', padding: '14px 32px', border: 'none' }}>
-                Start Assessment <ArrowRight size={18} />
+                Launch Triage Portal <ArrowRight size={18} />
               </button>
               <a href="#demo" className="btn btn-secondary" style={{ fontSize: '1.05rem', padding: '14px 32px' }}>
-                <Play size={16} fill="currentColor" /> Watch 2-Min Demo
+                <Play size={16} fill="currentColor" /> Try Demo Simulator
               </a>
             </motion.div>
 
@@ -138,11 +138,11 @@ export default function Hero({ onStartAssessment }) {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Shield size={18} color="#10b981" />
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>HIPAA Compliant</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>HIPAA Compliant Data</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Activity size={18} color="#06b6d4" />
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>99.2% Translation Accuracy</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>Dialect Context Mapping</span>
               </div>
             </motion.div>
           </motion.div>
@@ -264,7 +264,7 @@ export default function Hero({ onStartAssessment }) {
                   </div>
 
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '320px' }}>
-                    Speak naturally. The AI translates Spanish, Mandarin, Arabic, and 50+ languages instantly.
+                    Speak naturally. HealthCompass translates Telugu, Hindi, Tamil, and English dialects instantly.
                   </p>
                 </div>
               </div>
